@@ -1,8 +1,23 @@
-# Babylon Finality Gadget
+# ⚠️ NOT FOR PRODUCTION USE ⚠️
 
-The Babylon Finality Gadget is a program that can be run by users of OP stack L2s to track consecutive L2 block quorum and query the BTC-finalised status of blocks.
+> **This repository is a Proof-of-Concept (POC) and example implementation 
+> to showcase how a Finality Gadget can work. It is not a production-ready 
+> system and should not be used in production environments. We do not advise 
+> companies or projects to use this codebase as-is.**
 
-See our [proposal](https://github.com/ethereum-optimism/specs/discussions/218) on Optimism for more details.
+# Rollup BSN Finality Gadget
+
+The **Rollup BSN Finality Gadget** is an off-chain program that can be 
+run by the Rollup BSN network or by users of Rollup BSN. Its primary 
+purpose is to track and determine whether a given L2 block is BTC-finalized. 
+A block is considered BTC-finalized if it has received signatures from a quorum 
+of registered Finality Providers (FPs) for that block, according to the rules and 
+registration on the Babylon chain.
+
+This tool enables monitoring and querying of the BTC-finalized status of L2 blocks, 
+providing an extra layer of security and finality for rollup chains integrated with 
+the Rollup BSN ecosystem.
+
 
 ## Modules
 
@@ -84,6 +99,13 @@ To run tests:
 ```bash
 make test
 ```
+
+## Querying Finality Status
+
+You can query the finality status of blocks and transactions using the gRPC API provided by the Rollup BSN Finality Gadget. The main queries are:
+
+1. **Is a block finalized?**
+   - Use `QueryIsBlockBabylonFinalized` (checks by fetching on chain data)
 
 ## Build Docker image
 
