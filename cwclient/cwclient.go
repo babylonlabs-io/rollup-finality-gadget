@@ -54,12 +54,24 @@ func (cwClient *CosmWasmClient) QueryListOfVotedFinalityProviders(
 		return nil, nil
 	}
 
-	votedFpPkHexList := &[]string{}
-	if err := json.Unmarshal(resp.Data, votedFpPkHexList); err != nil {
+	// The contract now returns detailed finality signature information
+	// We need to extract just the fp_btc_pk_hex field from each object
+	var votedFpDetails []struct {
+		FpBtcPkHex string `json:"fp_btc_pk_hex"`
+		// We can ignore the other fields (pub_rand, finality_signature) for now
+	}
+
+	if err := json.Unmarshal(resp.Data, &votedFpDetails); err != nil {
 		return nil, err
 	}
 
-	return *votedFpPkHexList, nil
+	// Extract just the public key hex values
+	votedFpPkHexList := make([]string, len(votedFpDetails))
+	for i, detail := range votedFpDetails {
+		votedFpPkHexList[i] = detail.FpBtcPkHex
+	}
+
+	return votedFpPkHexList, nil
 }
 
 func (cwClient *CosmWasmClient) QueryConsumerId() (string, error) {
@@ -81,25 +93,6 @@ func (cwClient *CosmWasmClient) QueryConsumerId() (string, error) {
 	return data.ConsumerId, nil
 }
 
-func (cwClient *CosmWasmClient) QueryIsEnabled() (bool, error) {
-	queryData, err := createIsEnabledQueryData()
-	if err != nil {
-		return false, err
-	}
-
-	resp, err := cwClient.querySmartContractState(queryData)
-	if err != nil {
-		return false, err
-	}
-
-	var isEnabled bool
-	if err := json.Unmarshal(resp.Data, &isEnabled); err != nil {
-		return false, err
-	}
-
-	return isEnabled, nil
-}
-
 //////////////////////////////
 // INTERNAL
 //////////////////////////////
@@ -119,38 +112,27 @@ func createBlockVotersQueryData(queryParams *types.Block) ([]byte, error) {
 }
 
 type contractConfigResponse struct {
-	ConsumerId string `json:"consumer_id"`
+	ConsumerId                string `json:"bsn_id"`
+	BsnActivationHeight       uint64 `json:"bsn_activation_height"`
+	FinalitySignatureInterval uint64 `json:"finality_signature_interval"`
+	MinPubRand                uint64 `json:"min_pub_rand"`
 }
 
 type ContractQueryMsgs struct {
 	Config      *contractConfig   `json:"config,omitempty"`
 	BlockVoters *blockVotersQuery `json:"block_voters,omitempty"`
-	IsEnabled   *isEnabledQuery   `json:"is_enabled,omitempty"`
 }
 
 type blockVotersQuery struct {
-	Hash   string `json:"hash"`
+	Hash   string `json:"hash_hex"`
 	Height uint64 `json:"height"`
 }
-
-type isEnabledQuery struct{}
 
 type contractConfig struct{}
 
 func createConfigQueryData() ([]byte, error) {
 	queryData := ContractQueryMsgs{
 		Config: &contractConfig{},
-	}
-	data, err := json.Marshal(queryData)
-	if err != nil {
-		return nil, err
-	}
-	return data, nil
-}
-
-func createIsEnabledQueryData() ([]byte, error) {
-	queryData := ContractQueryMsgs{
-		IsEnabled: &isEnabledQuery{},
 	}
 	data, err := json.Marshal(queryData)
 	if err != nil {

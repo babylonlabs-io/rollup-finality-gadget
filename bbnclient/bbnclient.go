@@ -3,8 +3,8 @@ package bbnclient
 import (
 	"math"
 
-	"github.com/babylonlabs-io/babylon/client/query"
-	bbntypes "github.com/babylonlabs-io/babylon/x/btcstaking/types"
+	"github.com/babylonlabs-io/babylon/v3/client/query"
+	bbntypes "github.com/babylonlabs-io/babylon/v3/x/btcstaking/types"
 	sdkquerytypes "github.com/cosmos/cosmos-sdk/types/query"
 )
 
@@ -28,7 +28,7 @@ func NewBabylonClient(queryClient *query.QueryClient) *BabylonClient {
 
 func (bbnClient *BabylonClient) QueryAllFpBtcPubKeys(consumerId string) ([]string, error) {
 	pagination := &sdkquerytypes.PageRequest{}
-	resp, err := bbnClient.QueryClient.QueryConsumerFinalityProviders(consumerId, pagination)
+	resp, err := bbnClient.QueryClient.FinalityProviders(consumerId, pagination)
 	if err != nil {
 		return nil, err
 	}

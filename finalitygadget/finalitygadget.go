@@ -11,8 +11,8 @@ import (
 	"sync"
 	"time"
 
-	bbnclient "github.com/babylonlabs-io/babylon/client/client"
-	bbncfg "github.com/babylonlabs-io/babylon/client/config"
+	bbnclient "github.com/babylonlabs-io/babylon/v3/client/client"
+	bbncfg "github.com/babylonlabs-io/babylon/v3/client/config"
 	fgbbnclient "github.com/babylonlabs-io/finality-gadget/bbnclient"
 	"github.com/babylonlabs-io/finality-gadget/btcclient"
 	"github.com/babylonlabs-io/finality-gadget/config"
@@ -92,12 +92,18 @@ func NewFinalityGadget(cfg *config.Config, db db.IDatabaseHandler, logger *zap.L
 	}
 
 	lastProcessedHeight := uint64(0)
-	latestBlock, err := db.QueryLatestFinalizedBlock()
-	if err != nil && !errors.Is(err, types.ErrBlockNotFound) {
-		return nil, fmt.Errorf("failed to query latest finalized block: %w", err)
-	}
-	if latestBlock != nil {
-		lastProcessedHeight = latestBlock.BlockHeight
+
+	// Use configured start block height if specified, otherwise use database value
+	if cfg.StartBlockHeight > 0 {
+		lastProcessedHeight = cfg.StartBlockHeight - 1
+	} else {
+		latestBlock, err := db.QueryLatestFinalizedBlock()
+		if err != nil && !errors.Is(err, types.ErrBlockNotFound) {
+			return nil, fmt.Errorf("failed to query latest finalized block: %w", err)
+		}
+		if latestBlock != nil {
+			lastProcessedHeight = latestBlock.BlockHeight
+		}
 	}
 
 	// Create finality gadget
@@ -138,16 +144,6 @@ func NewFinalityGadget(cfg *config.Config, db db.IDatabaseHandler, logger *zap.L
 func (fg *FinalityGadget) QueryIsBlockBabylonFinalizedFromBabylon(block *types.Block) (bool, error) {
 	if block == nil {
 		return false, fmt.Errorf("block is nil")
-	}
-
-	// check if the finality gadget is enabled
-	// if not, always return true to pass through op derivation pipeline
-	isEnabled, err := fg.cwClient.QueryIsEnabled()
-	if err != nil {
-		return false, err
-	}
-	if !isEnabled {
-		return true, nil
 	}
 
 	// trim prefix 0x for the L2 block hash
@@ -216,16 +212,6 @@ func (fg *FinalityGadget) QueryIsBlockBabylonFinalizedFromBabylon(block *types.B
 
 // QueryIsBlockBabylonFinalized queries the finality status of a given block height from the internal db
 func (fg *FinalityGadget) QueryIsBlockBabylonFinalized(block *types.Block) (bool, error) {
-	// check if the finality gadget is enabled
-	// if not, always return true to pass through op derivation pipeline
-	isEnabled, err := fg.cwClient.QueryIsEnabled()
-	if err != nil {
-		return false, err
-	}
-	if !isEnabled {
-		return true, nil
-	}
-
 	// check whether the btc staking is activated
 	btcStakingActivatedTimestamp, err := fg.QueryBtcStakingActivatedTimestamp()
 	if err != nil {

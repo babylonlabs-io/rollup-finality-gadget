@@ -55,14 +55,32 @@ cp config.toml.example config.toml
 Configure the `config.toml` file with the following parameters:
 
 ```toml
-L2RPCHost = # RPC URL of OP stack L2 chain
-BitcoinRPCHost = # Bitcoin RPC URL
-DBFilePath = # Path to local bbolt DB file
-FGContractAddress = # Babylon finality gadget contract address
-BBNChainID = # Babylon chain id
-BBNRPCAddress = # Babylon RPC host URL
-GRPCListener = # Host:port to listen for gRPC connections
-PollInterval = # Interval to poll for new L2 blocks
+# L2 Chain Configuration
+L2RPCHost = "http://localhost:8545"        # RPC URL of OP stack L2 chain
+
+# Bitcoin Node Configuration  
+BitcoinRPCHost = "localhost:18443"         # Bitcoin RPC URL
+BitcoinRPCUser = "rpcuser"                 # Bitcoin RPC username (optional)
+BitcoinRPCPass = "rpcpass"                 # Bitcoin RPC password (optional)  
+BitcoinDisableTLS = true                   # Disable TLS for HTTP connections (required for http://)
+
+# Babylon Chain Configuration
+FGContractAddress = ""                     # Rollup BSN contract address
+BBNChainID = ""                            # Babylon chain ID
+BBNRPCAddress = "http://localhost:26657"   # Babylon RPC host URL
+
+# Database Configuration
+DBFilePath = "./finalitygadget.db"         # Path to local bbolt DB file
+
+# Server Configuration
+GRPCListener = "0.0.0.0:50051"             # Host:port to listen for gRPC connections
+HTTPListener = "0.0.0.0:8085"              # Host:port to listen for HTTP connections
+
+# Processing Configuration
+PollInterval = "1s"                        # Interval to poll for new L2 blocks
+BatchSize = 1                              # Number of blocks to process in a batch
+StartBlockHeight = 0                       # Block height to start processing from (0 = use latest)
+LogLevel = "info"                          # Log level (debug, info, warn, error)
 ```
 
 ### Building and installing the binary
@@ -92,20 +110,60 @@ To start the daemon, run:
 opfgd start --cfg config.toml
 ```
 
-### Running tests
+## Querying Block Finality Status
 
-To run tests:
+The finality gadget provides gRPC endpoints to query the finalization status of blocks. You can use `grpcurl` to test these endpoints.
+
+### Prerequisites
+
+Install `grpcurl` if you haven't already:
 
 ```bash
-make test
+# macOS
+brew install grpcurl
+
+# Ubuntu/Debian
+apt install grpcurl
+
+# Or go install
+go install github.com/fullstorydev/grpcurl/cmd/grpcurl@latest
 ```
 
-## Querying Finality Status
+### Available gRPC Endpoints
 
-You can query the finality status of blocks and transactions using the gRPC API provided by the Rollup BSN Finality Gadget. The main queries are:
+#### 1. Check if a specific block height is finalized
 
-1. **Is a block finalized?**
-   - Use `QueryIsBlockBabylonFinalized` (checks by fetching on chain data)
+```bash
+grpcurl -plaintext -proto proto/finalitygadget.proto \
+  -d '{"block_height": 27259}' \
+  localhost:50051 proto.FinalityGadget/QueryIsBlockFinalizedByHeight
+```
+
+**Response:**
+```json
+{
+  "isFinalized": true
+}
+```
+
+#### 2. Get the latest finalized block
+
+```bash
+grpcurl -plaintext -proto proto/finalitygadget.proto \
+  -d '{}' \
+  localhost:50051 proto.FinalityGadget/QueryLatestFinalizedBlock
+```
+
+**Response:**
+```json
+{
+  "block": {
+    "blockHash": "0x511b9c896c93ab4b82ce3be5061ec3323db7dfdaa02d3e22579c14658e0f1ca3",
+    "blockHeight": "26788",
+    "blockTimestamp": "1753706277"
+  }
+}
+```
 
 ## Build Docker image
 

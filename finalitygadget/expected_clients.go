@@ -28,7 +28,6 @@ type IBabylonClient interface {
 type ICosmWasmClient interface {
 	QueryListOfVotedFinalityProviders(queryParams *types.Block) ([]string, error)
 	QueryConsumerId() (string, error)
-	QueryIsEnabled() (bool, error)
 }
 
 type IEthL2Client interface {
