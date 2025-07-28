@@ -243,21 +243,6 @@ func (mr *MockICosmWasmClientMockRecorder) QueryConsumerId() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "QueryConsumerId", reflect.TypeOf((*MockICosmWasmClient)(nil).QueryConsumerId))
 }
 
-// QueryIsEnabled mocks base method.
-func (m *MockICosmWasmClient) QueryIsEnabled() (bool, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "QueryIsEnabled")
-	ret0, _ := ret[0].(bool)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// QueryIsEnabled indicates an expected call of QueryIsEnabled.
-func (mr *MockICosmWasmClientMockRecorder) QueryIsEnabled() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "QueryIsEnabled", reflect.TypeOf((*MockICosmWasmClient)(nil).QueryIsEnabled))
-}
-
 // QueryListOfVotedFinalityProviders mocks base method.
 func (m *MockICosmWasmClient) QueryListOfVotedFinalityProviders(queryParams *types.Block) ([]string, error) {
 	m.ctrl.T.Helper()

@@ -19,24 +19,7 @@ import (
 
 // TODO: add `QueryIsBlockBabylonFinalizedFromBabylon` as test fn once removed from interface
 
-func TestFinalityGadgetDisabled(t *testing.T) {
-	ctl := gomock.NewController(t)
-
-	// mock CwClient
-	mockCwClient := mocks.NewMockICosmWasmClient(ctl)
-	mockCwClient.EXPECT().QueryIsEnabled().Return(false, nil).Times(1)
-
-	mockTestFinalityGadget := &FinalityGadget{
-		cwClient:  mockCwClient,
-		bbnClient: nil,
-		btcClient: nil,
-	}
-
-	// check QueryIsBlockBabylonFinalized always returns true when finality gadget is not enabled
-	res, err := mockTestFinalityGadget.QueryIsBlockBabylonFinalizedFromBabylon(&types.Block{})
-	require.NoError(t, err)
-	require.True(t, res)
-}
+// Note: TestFinalityGadgetDisabled removed as QueryIsEnabled functionality has been removed from the codebase
 
 func TestQueryIsBlockBabylonFinalized(t *testing.T) {
 	blockWithHashUntrimmed := types.Block{
@@ -149,7 +132,6 @@ func TestQueryIsBlockBabylonFinalized(t *testing.T) {
 			defer ctl.Finish()
 
 			mockCwClient := mocks.NewMockICosmWasmClient(ctl)
-			mockCwClient.EXPECT().QueryIsEnabled().Return(true, nil).Times(1)
 			mockCwClient.EXPECT().QueryConsumerId().Return(consumerChainID, nil).Times(1)
 			mockBTCClient := mocks.NewMockIBitcoinClient(ctl)
 			mockBTCClient.EXPECT().
