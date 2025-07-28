@@ -34,42 +34,56 @@ the required threshold (> 2/3).
 
 ## 3. Step‑by‑Step Algorithm
 
-1. **Fetch activation params from contract**  
-   - Query the Rollup BSN contract for `bsn_activation_height` and 
-     `finality_signature_interval`
+1. **Fetch activation parameters**  
+   Read `bsn_activation_height` and `finality_signature_interval` from the Rollup BSN contract.
 
-2. **Check block eligibility**  
-   - If `currentBlockHeight < bsn_activation_height`, **skip**: set starting
-     block to `bsn_activation_height`
-   - Else if  
-     `(currentBlockHeight - bsn_activation_height) % 
-     finality_signature_interval != 0`, **skip**: move to next valid block
+2. **Determine start block**  
+   ```pseudo
+   if currentBlockHeight < bsn_activation_height:
+       currentBlockHeight = bsn_activation_height
+   ```
 
-3. **Fetch all FP public keys**  
-   - Query Babylon for the list of registered FPs for this consumer
+3. **Align to signature interval**  
+   Advance to the next block that satisfies  
+   ```pseudo
+   (currentBlockHeight - bsn_activation_height) % finality_signature_interval == 0
+   ```
 
-4. **Convert block timestamp to BTC height**  
-   - Use the Bitcoin client to map the L2 block’s timestamp to the BTC 
-     block height
+4. **Fetch validator public keys**  
+   Get the list of all registered FPs (validator public keys) from Babylon.
 
-5. **Fetch voting power for each FP**  
-   - For each FP:  
-     1. Query Babylon for their active delegations at that BTC height
-     2. Sum the delegation shares to compute the FP’s voting power
+5. **Map timestamp → BTC height**  
+   Use your Bitcoin client to find the BTC block whose timestamp matches the L2 block’s timestamp.
 
-6. **Calculate total voting power**  
-   - Sum the voting power of all FPs fetched
+6. **Compute each validator’s voting power**  
+   For each FP:  
+   1. Query Babylon for active delegations at that BTC height.  
+   2. Sum up shares → `votingPower[FP]`
 
-7. **Fetch votes for the block**  
-   - Query the Rollup BSN contract for votes on the given block height 
-     and hash
+7. **Calculate total voting power**  
+   For all FPs:
+   ```pseudo
+   totalPower = Σ votingPower[FP]
+   ```
 
-8. **Calculate voted voting power**  
-   - Sum the voting power of only those FPs present in the vote list
+8. **Fetch votes for the block**  
+   Read from the Rollup BSN contract which FPs voted on this block.
 
-9. **Check if quorum is met**  
-   - If `votedPower * 3 >= totalPower * 2`, **mark block as finalized**
-   - Otherwise, **block remains unfinalized**
+9. **Sum voted power**  
+   For all FPs in voteList:
+   ```pseudo
+   votedPower = Σ votingPower[FP]
+   ```
+
+10. **Check quorum**  
+    ```pseudo
+    if votedPower * 3 >= totalPower * 2:
+        mark block as FINALIZED
+        go-to next valid block
+    else:
+        block remains UNFINALIZED
+        wait for block to be finalized
+    ```
 
 > **Note:**  
 > The current implementation does **not** enforce the contract’s allow‑list. 
