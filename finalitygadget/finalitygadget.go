@@ -100,8 +100,6 @@ func NewFinalityGadget(cfg *config.Config, db db.IDatabaseHandler, logger *zap.L
 
 	lastProcessedHeight := uint64(0)
 
-	fmt.Println("contractConfig", contractConfig)
-
 	// Check if configured start block height is valid against bsn_activation_height
 	if cfg.StartBlockHeight > 0 {
 		if cfg.StartBlockHeight < contractConfig.BsnActivationHeight {
