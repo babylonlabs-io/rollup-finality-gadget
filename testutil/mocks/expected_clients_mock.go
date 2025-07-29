@@ -228,6 +228,21 @@ func (m *MockICosmWasmClient) EXPECT() *MockICosmWasmClientMockRecorder {
 	return m.recorder
 }
 
+// QueryConfig mocks base method.
+func (m *MockICosmWasmClient) QueryConfig() (*types.ContractConfig, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "QueryConfig")
+	ret0, _ := ret[0].(*types.ContractConfig)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// QueryConfig indicates an expected call of QueryConfig.
+func (mr *MockICosmWasmClientMockRecorder) QueryConfig() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "QueryConfig", reflect.TypeOf((*MockICosmWasmClient)(nil).QueryConfig))
+}
+
 // QueryConsumerId mocks base method.
 func (m *MockICosmWasmClient) QueryConsumerId() (string, error) {
 	m.ctrl.T.Helper()
