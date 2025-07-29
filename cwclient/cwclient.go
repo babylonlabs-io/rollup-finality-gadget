@@ -93,6 +93,30 @@ func (cwClient *CosmWasmClient) QueryConsumerId() (string, error) {
 	return data.ConsumerId, nil
 }
 
+func (cwClient *CosmWasmClient) QueryConfig() (*types.ContractConfig, error) {
+	queryData, err := createConfigQueryData()
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := cwClient.querySmartContractState(queryData)
+	if err != nil {
+		return nil, err
+	}
+
+	var data contractConfigResponse
+	if err := json.Unmarshal(resp.Data, &data); err != nil {
+		return nil, err
+	}
+
+	return &types.ContractConfig{
+		ConsumerId:                data.ConsumerId,
+		BsnActivationHeight:       data.BsnActivationHeight,
+		FinalitySignatureInterval: data.FinalitySignatureInterval,
+		MinPubRand:                data.MinPubRand,
+	}, nil
+}
+
 //////////////////////////////
 // INTERNAL
 //////////////////////////////

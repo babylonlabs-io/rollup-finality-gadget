@@ -91,19 +91,25 @@ func NewFinalityGadget(cfg *config.Config, db db.IDatabaseHandler, logger *zap.L
 		return nil, err
 	}
 
+	// Query config from rollup-bsn contract to get bsn_activation_height
+	contractConfig, err := cwClient.QueryConfig()
+	if err != nil {
+		return nil, fmt.Errorf("failed to query contract config: %w", err)
+	}
+
 	lastProcessedHeight := uint64(0)
 
-	// Use configured start block height if specified, otherwise use database value
+	fmt.Println("contractConfig", contractConfig)
+
+	// Check if configured start block height is valid against bsn_activation_height
 	if cfg.StartBlockHeight > 0 {
+		if cfg.StartBlockHeight < contractConfig.BsnActivationHeight {
+			return nil, fmt.Errorf("configured StartBlockHeight (%d) is less than bsn_activation_height (%d), earliest allowed block is %d",
+				cfg.StartBlockHeight, contractConfig.BsnActivationHeight, contractConfig.BsnActivationHeight)
+		}
 		lastProcessedHeight = cfg.StartBlockHeight - 1
 	} else {
-		latestBlock, err := db.QueryLatestFinalizedBlock()
-		if err != nil && !errors.Is(err, types.ErrBlockNotFound) {
-			return nil, fmt.Errorf("failed to query latest finalized block: %w", err)
-		}
-		if latestBlock != nil {
-			lastProcessedHeight = latestBlock.BlockHeight
-		}
+		return nil, fmt.Errorf("StartBlockHeight must be specified and >= bsn_activation_height (%d)", contractConfig.BsnActivationHeight)
 	}
 
 	// Create finality gadget
