@@ -10,9 +10,10 @@
 The **Rollup BSN Finality Gadget** is an off-chain program that can be 
 run by the Rollup BSN network or by users of Rollup BSN. Its primary 
 purpose is to track and determine whether a given L2 block is BTC-finalized. 
-A block is considered BTC-finalized if it has received signatures from a quorum 
-of registered Finality Providers (FPs) for that block, according to the rules and 
-registration on the Babylon chain.
+A block is considered BTC‑finalized if it has:
+- received signatures from a quorum of registered Finality Providers (FPs) for that block, 
+according to the rules and registration on the Babylon Genesis chain
+- its prior block at height h − X is also BTC‑staking‑finalized, where X is the finality signature interval
 
 This tool enables monitoring and querying of the BTC-finalized status of L2 blocks, 
 providing an extra layer of security and finality for rollup chains integrated with 
