@@ -81,8 +81,6 @@ func runStartCmd(ctx client.Context, cmd *cobra.Command, args []string) error {
 	// Create a cancellable context
 	fgCtx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	// Start monitoring BTC staking activation
-	go fg.MonitorBtcStakingActivation(fgCtx)
 
 	// Start both grpc and http servers
 	// Hook interceptor for os signals.
@@ -97,11 +95,6 @@ func runStartCmd(ctx client.Context, cmd *cobra.Command, args []string) error {
 			logger.Fatal("Finality gadget server error", zap.Error(err))
 		}
 	}()
-
-	// Start finality gadget
-	if err := fg.Startup(fgCtx); err != nil {
-		logger.Fatal("Error starting finality gadget", zap.Error(err))
-	}
 
 	// Run finality gadget in a separate goroutine
 	go func() {

@@ -11,8 +11,8 @@ import (
 	"sync"
 	"time"
 
-	bbnclient "github.com/babylonlabs-io/babylon/client/client"
-	bbncfg "github.com/babylonlabs-io/babylon/client/config"
+	bbnclient "github.com/babylonlabs-io/babylon/v3/client/client"
+	bbncfg "github.com/babylonlabs-io/babylon/v3/client/config"
 	fgbbnclient "github.com/babylonlabs-io/finality-gadget/bbnclient"
 	"github.com/babylonlabs-io/finality-gadget/btcclient"
 	"github.com/babylonlabs-io/finality-gadget/config"
@@ -41,6 +41,7 @@ type FinalityGadget struct {
 	pollInterval        time.Duration
 	lastProcessedHeight uint64
 	batchSize           uint64
+	contractConfig      *types.ContractConfig
 }
 
 //////////////////////////////
@@ -91,13 +92,23 @@ func NewFinalityGadget(cfg *config.Config, db db.IDatabaseHandler, logger *zap.L
 		return nil, err
 	}
 
-	lastProcessedHeight := uint64(0)
-	latestBlock, err := db.QueryLatestFinalizedBlock()
-	if err != nil && !errors.Is(err, types.ErrBlockNotFound) {
-		return nil, fmt.Errorf("failed to query latest finalized block: %w", err)
+	// Query config from rollup-bsn contract to get bsn_activation_height
+	contractConfig, err := cwClient.QueryConfig()
+	if err != nil {
+		return nil, fmt.Errorf("failed to query contract config: %w", err)
 	}
-	if latestBlock != nil {
-		lastProcessedHeight = latestBlock.BlockHeight
+
+	lastProcessedHeight := uint64(0)
+
+	// Check if configured start block height is valid against bsn_activation_height
+	if cfg.StartBlockHeight > 0 {
+		if cfg.StartBlockHeight < contractConfig.BsnActivationHeight {
+			return nil, fmt.Errorf("configured StartBlockHeight (%d) is less than bsn_activation_height (%d), earliest allowed block is %d",
+				cfg.StartBlockHeight, contractConfig.BsnActivationHeight, contractConfig.BsnActivationHeight)
+		}
+		lastProcessedHeight = cfg.StartBlockHeight - 1
+	} else {
+		return nil, fmt.Errorf("StartBlockHeight must be specified and >= bsn_activation_height (%d)", contractConfig.BsnActivationHeight)
 	}
 
 	// Create finality gadget
@@ -111,6 +122,7 @@ func NewFinalityGadget(cfg *config.Config, db db.IDatabaseHandler, logger *zap.L
 		batchSize:           cfg.BatchSize,
 		lastProcessedHeight: lastProcessedHeight,
 		logger:              logger,
+		contractConfig:      contractConfig,
 	}, nil
 }
 
@@ -138,16 +150,6 @@ func NewFinalityGadget(cfg *config.Config, db db.IDatabaseHandler, logger *zap.L
 func (fg *FinalityGadget) QueryIsBlockBabylonFinalizedFromBabylon(block *types.Block) (bool, error) {
 	if block == nil {
 		return false, fmt.Errorf("block is nil")
-	}
-
-	// check if the finality gadget is enabled
-	// if not, always return true to pass through op derivation pipeline
-	isEnabled, err := fg.cwClient.QueryIsEnabled()
-	if err != nil {
-		return false, err
-	}
-	if !isEnabled {
-		return true, nil
 	}
 
 	// trim prefix 0x for the L2 block hash
@@ -216,16 +218,6 @@ func (fg *FinalityGadget) QueryIsBlockBabylonFinalizedFromBabylon(block *types.B
 
 // QueryIsBlockBabylonFinalized queries the finality status of a given block height from the internal db
 func (fg *FinalityGadget) QueryIsBlockBabylonFinalized(block *types.Block) (bool, error) {
-	// check if the finality gadget is enabled
-	// if not, always return true to pass through op derivation pipeline
-	isEnabled, err := fg.cwClient.QueryIsEnabled()
-	if err != nil {
-		return false, err
-	}
-	if !isEnabled {
-		return true, nil
-	}
-
 	// check whether the btc staking is activated
 	btcStakingActivatedTimestamp, err := fg.QueryBtcStakingActivatedTimestamp()
 	if err != nil {
@@ -616,8 +608,41 @@ func (fg *FinalityGadget) processBlocksTillHeight(ctx context.Context, latestHei
 			errors := make(chan error, batchEndHeight-batchStartHeight+1)
 			var wg sync.WaitGroup
 
-			// Query batch in parallel
+			// Collect heights that should be processed based on finality signature interval
+			var heightsToProcess []uint64
 			for height := batchStartHeight; height <= batchEndHeight; height++ {
+				if fg.shouldProcessHeight(height) {
+					heightsToProcess = append(heightsToProcess, height)
+				}
+			}
+
+			fg.logger.Debug("Heights to process in batch based on finality signature interval",
+				zap.Uint64("batch_start_height", batchStartHeight),
+				zap.Uint64("batch_end_height", batchEndHeight),
+				zap.Uint64("bsn_activation_height", fg.contractConfig.BsnActivationHeight),
+				zap.Uint64("finality_signature_interval", fg.contractConfig.FinalitySignatureInterval),
+				zap.Strings("heights_to_process", func() []string {
+					var heights []string
+					for _, h := range heightsToProcess {
+						heights = append(heights, fmt.Sprintf("%d", h))
+					}
+					return heights
+				}()))
+
+			// Skip if no heights to process in this batch
+			if len(heightsToProcess) == 0 {
+				fg.logger.Debug("No heights to process in batch based on finality signature interval", zap.Uint64("batch_start_height", batchStartHeight), zap.Uint64("batch_end_height", batchEndHeight))
+				fg.lastProcessedHeight = batchEndHeight
+				batchStartHeight = batchEndHeight + 1
+				continue
+			}
+
+			// Update channel sizes based on actual heights to process
+			results = make(chan *types.Block, len(heightsToProcess))
+			errors = make(chan error, len(heightsToProcess))
+
+			// Query only the heights that should be processed in parallel
+			for _, height := range heightsToProcess {
 				wg.Add(1)
 				go func(h uint64) {
 					defer wg.Done()
@@ -645,10 +670,9 @@ func (fg *FinalityGadget) processBlocksTillHeight(ctx context.Context, latestHei
 				}
 			}
 
-			// Extract blocks and find last consecutive finalized block.
+			// Extract blocks and find finalized blocks at signature intervals.
 			// As channels are async, blocks will NOT be ordered by height
-			// We use a map to first sort blocks by height, then extract the last
-			// consecutively finalized block.
+			// We use a map to sort blocks by height, then extract finalized blocks.
 			sortedBlocks := make(map[uint64]*types.Block)
 			for block := range results {
 				if block != nil {
@@ -658,21 +682,30 @@ func (fg *FinalityGadget) processBlocksTillHeight(ctx context.Context, latestHei
 
 			var finalizedBlocks []*types.Block
 			var lastFinalizedHeight uint64
-			for i := batchStartHeight; i <= batchEndHeight; i++ {
-				if block, ok := sortedBlocks[i]; ok {
+			// Check only the heights we processed (at signature intervals)
+			for _, height := range heightsToProcess {
+				if block, ok := sortedBlocks[height]; ok {
 					if block != nil {
 						finalizedBlocks = append(finalizedBlocks, block)
 						lastFinalizedHeight = block.BlockHeight
 					}
 				} else {
+					// If a height we should check is not finalized, stop processing
+					fg.logger.Debug("Block at required height not finalized, stopping", zap.Uint64("height", height))
 					break
 				}
 			}
 			fg.logger.Debug("Last finalized block in batch", zap.Uint64("block_height", lastFinalizedHeight), zap.Uint64("batch_start_height", batchStartHeight), zap.Uint64("batch_end_height", batchEndHeight))
 
-			// If no blocks were finalized, wait for next poll
-			if lastFinalizedHeight < batchStartHeight || len(finalizedBlocks) == 0 {
-				fg.logger.Debug("No blocks finalized, waiting for next poll", zap.Uint64("batch_start_height", batchStartHeight), zap.Uint64("batch_end_height", batchEndHeight))
+			// If no blocks were finalized at required intervals, wait for next poll
+			if len(finalizedBlocks) == 0 {
+				fg.logger.Debug("No blocks finalized at required signature intervals, waiting for next poll", zap.Uint64("batch_start_height", batchStartHeight), zap.Uint64("batch_end_height", batchEndHeight), zap.Strings("heights_checked", func() []string {
+					var heights []string
+					for _, h := range heightsToProcess {
+						heights = append(heights, fmt.Sprintf("%d", h))
+					}
+					return heights
+				}()))
 				return nil
 			}
 
@@ -791,4 +824,15 @@ func validateEVMTxHash(txHash string) error {
 		return fmt.Errorf("invalid EVM transaction hash")
 	}
 	return nil
+}
+
+// shouldProcessHeight determines if a block height should be processed based on the finality signature interval
+func (fg *FinalityGadget) shouldProcessHeight(height uint64) bool {
+	// Only process blocks at the finality signature interval starting from BSN activation height
+	if height < fg.contractConfig.BsnActivationHeight {
+		return false
+	}
+
+	// Check if this height is at the correct interval
+	return (height-fg.contractConfig.BsnActivationHeight)%fg.contractConfig.FinalitySignatureInterval == 0
 }

@@ -12,3 +12,10 @@ type ChainSyncStatus struct {
 	EarliestBtcFinalizedBlockHeight uint64 `json:"earliest_btc_finalized_block"`
 	LatestEthFinalizedBlockHeight   uint64 `json:"latest_eth_finalized_block"`
 }
+
+type ContractConfig struct {
+	ConsumerId                string `json:"bsn_id"`
+	BsnActivationHeight       uint64 `json:"bsn_activation_height"`
+	FinalitySignatureInterval uint64 `json:"finality_signature_interval"`
+	MinPubRand                uint64 `json:"min_pub_rand"`
+}

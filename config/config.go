@@ -22,6 +22,7 @@ type Config struct {
 	BitcoinDisableTLS bool          `long:"bitcoin-disable-tls" description:"disable TLS for RPC connections"`
 	PollInterval      time.Duration `long:"retry-interval" description:"interval in seconds to recheck Babylon finality of block"`
 	BatchSize         uint64        `long:"batch-size" description:"number of blocks to process in a batch"`
+	StartBlockHeight  uint64        `long:"start-block-height" description:"block height to start processing from (0 = use latest from database)"`
 }
 
 func (c *Config) Validate() error {

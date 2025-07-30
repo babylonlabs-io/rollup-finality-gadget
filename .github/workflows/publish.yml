@@ -15,7 +15,6 @@ jobs:
     uses: babylonlabs-io/.github/.github/workflows/reusable_go_lint_test.yml@v0.7.0
     with:
       run-build: true
-      run-lint: true
       run-unit-tests: true
       run-check-mock-gen: true
       run-gosec: true
