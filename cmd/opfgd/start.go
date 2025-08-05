@@ -13,6 +13,7 @@ import (
 	"github.com/babylonlabs-io/finality-gadget/db"
 	"github.com/babylonlabs-io/finality-gadget/finalitygadget"
 	"github.com/babylonlabs-io/finality-gadget/log"
+	"github.com/babylonlabs-io/finality-gadget/metrics"
 	"github.com/babylonlabs-io/finality-gadget/server"
 	sig "github.com/lightningnetwork/lnd/signal"
 )
@@ -54,6 +55,9 @@ func runStartCmd(ctx client.Context, cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to create logger: %w", err)
 	}
+
+	// Initialize metrics
+	metrics.Init(logger)
 
 	// Init local DB for storing and querying blocks
 	db, err := db.NewBBoltHandler(cfg.DBFilePath, logger)

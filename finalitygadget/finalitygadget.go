@@ -19,6 +19,7 @@ import (
 	"github.com/babylonlabs-io/finality-gadget/cwclient"
 	"github.com/babylonlabs-io/finality-gadget/db"
 	"github.com/babylonlabs-io/finality-gadget/ethl2client"
+	"github.com/babylonlabs-io/finality-gadget/metrics"
 	"github.com/babylonlabs-io/finality-gadget/testutil/mocks"
 	"github.com/babylonlabs-io/finality-gadget/types"
 	"github.com/ethereum/go-ethereum/common"
@@ -542,6 +543,9 @@ func (fg *FinalityGadget) insertBlocks(blocks []*types.Block) error {
 	if err := fg.db.InsertBlocks(normalizedBlocks); err != nil {
 		return fmt.Errorf("failed to batch insert blocks: %w", err)
 	}
+
+	// Increment metrics for finalized blocks
+	metrics.FinalizedBlocksTotal.Add(float64(len(normalizedBlocks)))
 
 	return nil
 }
