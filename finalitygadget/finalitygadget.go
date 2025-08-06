@@ -210,6 +210,28 @@ func (fg *FinalityGadget) QueryIsBlockBabylonFinalizedFromBabylon(block *types.B
 		}
 	}
 
+	// Track FP voting behavior in metrics
+	for _, votedFpPk := range votedFpPks {
+		metrics.FpLatestBlockVoted.WithLabelValues(votedFpPk).Set(float64(block.BlockHeight))
+	}
+
+	// Track which FPs voted for this block
+	if len(votedFpPks) > 0 {
+		fpList := strings.Join(votedFpPks, ",")
+		metrics.BlockVoters.WithLabelValues(
+			fmt.Sprintf("%d", block.BlockHeight),
+			fpList,
+		).Set(float64(len(votedFpPks)))
+	}
+
+	// Track voting power per FP per block
+	for fpPubkey, power := range allFpPower {
+		metrics.FpVotingPowerPerBlock.WithLabelValues(
+			fmt.Sprintf("%d", block.BlockHeight),
+			fpPubkey,
+		).Set(float64(power))
+	}
+
 	// quorom < 2/3
 	if votedPower*3 < totalPower*2 {
 		return false, nil
@@ -756,6 +778,10 @@ func (fg *FinalityGadget) processHeight(height uint64) (*types.Block, error) {
 	}
 
 	fg.logger.Debug("Block finalized", zap.Uint64("block_height", height))
+
+	// Update latest finalized block height metric
+	metrics.LatestFinalizedBlockHeight.Set(float64(height))
+
 	return block, nil
 }
 
