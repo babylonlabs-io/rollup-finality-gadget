@@ -20,7 +20,6 @@ type IBitcoinClient interface {
 
 type IBabylonClient interface {
 	QueryAllFpBtcPubKeys(consumerId string) ([]string, error)
-	QueryFpPower(fpPubkeyHex string, btcHeight uint32) (uint64, error)
 	QueryMultiFpPower(fpPubkeyHexList []string, btcHeight uint32) (map[string]uint64, error)
 	QueryEarliestActiveDelBtcHeight(fpPubkeyHexList []string) (uint32, error)
 }

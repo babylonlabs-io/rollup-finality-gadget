@@ -25,11 +25,11 @@ var (
 		Help: "List of finality providers who voted for each block",
 	}, []string{"block_height", "fp_pubkeys"})
 
-	// FpVotingPowerPerBlock tracks each FP's voting power at each block
-	FpVotingPowerPerBlock = promauto.NewGaugeVec(prometheus.GaugeOpts{
-		Name: "finality_gadget_fp_voting_power_per_block",
-		Help: "Voting power of each finality provider at each block height",
-	}, []string{"block_height", "fp_pubkey"})
+	// FpLatestVotingPower tracks each FP's voting power for the latest processed block
+	FpLatestVotingPower = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "finality_gadget_fp_latest_voting_power",
+		Help: "Latest voting power of each finality provider",
+	}, []string{"fp_pubkey"})
 
 	// LatestFinalizedBlockHeight tracks the height of the latest finalized block
 	LatestFinalizedBlockHeight = promauto.NewGauge(prometheus.GaugeOpts{
@@ -45,6 +45,6 @@ func Init(logger *zap.Logger) {
 		zap.String("blocks_metric", "finality_gadget_finalized_blocks_total"),
 		zap.String("fp_voting_metric", "finality_gadget_fp_latest_block_voted"),
 		zap.String("block_voters_metric", "finality_gadget_block_voters"),
-		zap.String("fp_voting_power_metric", "finality_gadget_fp_voting_power_per_block"),
+		zap.String("fp_voting_power_metric", "finality_gadget_fp_latest_voting_power"),
 		zap.String("latest_finalized_metric", "finality_gadget_latest_finalized_block_height"))
 }

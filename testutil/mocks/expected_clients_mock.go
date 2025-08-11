@@ -174,21 +174,6 @@ func (mr *MockIBabylonClientMockRecorder) QueryEarliestActiveDelBtcHeight(fpPubk
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "QueryEarliestActiveDelBtcHeight", reflect.TypeOf((*MockIBabylonClient)(nil).QueryEarliestActiveDelBtcHeight), fpPubkeyHexList)
 }
 
-// QueryFpPower mocks base method.
-func (m *MockIBabylonClient) QueryFpPower(fpPubkeyHex string, btcHeight uint32) (uint64, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "QueryFpPower", fpPubkeyHex, btcHeight)
-	ret0, _ := ret[0].(uint64)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// QueryFpPower indicates an expected call of QueryFpPower.
-func (mr *MockIBabylonClientMockRecorder) QueryFpPower(fpPubkeyHex, btcHeight any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "QueryFpPower", reflect.TypeOf((*MockIBabylonClient)(nil).QueryFpPower), fpPubkeyHex, btcHeight)
-}
-
 // QueryMultiFpPower mocks base method.
 func (m *MockIBabylonClient) QueryMultiFpPower(fpPubkeyHexList []string, btcHeight uint32) (map[string]uint64, error) {
 	m.ctrl.T.Helper()
