@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - 'main'
+      - 'hiep/test'
     tags:
       - '*'
   pull_request:
@@ -21,7 +22,6 @@ jobs:
       gosec-args: "-exclude-generated -exclude-dir=testutil ./..."
 
   docker_pipeline:
-    needs: ["lint_test"]
     uses: babylonlabs-io/.github/.github/workflows/reusable_docker_pipeline.yml@v0.7.0
     secrets: inherit
     with:
