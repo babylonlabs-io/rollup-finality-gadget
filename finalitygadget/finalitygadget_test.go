@@ -35,94 +35,76 @@ func TestQueryIsBlockBabylonFinalized(t *testing.T) {
 	const BTCHeight = uint32(111)
 
 	testCases := []struct {
-		name                    string
-		expectedErr             error
-		block                   *types.Block
-		allFpPks                []string
-		fpPowers                map[string]uint64
-		votedProviders          []string
-		stakingActivationHeight uint32
-		expectResult            bool
+		name           string
+		expectedErr    error
+		block          *types.Block
+		allFpPks       []string
+		fpPowers       map[string]uint64
+		votedProviders []string
+		expectResult   bool
 	}{
 		{
-			name:                    "0% votes, expects false",
-			block:                   &blockWithHashTrimmed,
-			allFpPks:                []string{"pk1", "pk2"},
-			fpPowers:                map[string]uint64{"pk1": 100, "pk2": 300},
-			votedProviders:          []string{},
-			stakingActivationHeight: BTCHeight - 1,
-			expectResult:            false,
-			expectedErr:             nil,
+			name:           "0% votes, expects false",
+			block:          &blockWithHashTrimmed,
+			allFpPks:       []string{"pk1", "pk2"},
+			fpPowers:       map[string]uint64{"pk1": 100, "pk2": 300},
+			votedProviders: []string{},
+			expectResult:   false,
+			expectedErr:    nil,
 		},
 		{
-			name:                    "25% votes, expects false",
-			block:                   &blockWithHashTrimmed,
-			allFpPks:                []string{"pk1", "pk2"},
-			fpPowers:                map[string]uint64{"pk1": 100, "pk2": 300},
-			votedProviders:          []string{"pk1"},
-			stakingActivationHeight: BTCHeight - 1,
-			expectResult:            false,
-			expectedErr:             nil,
+			name:           "25% votes, expects false",
+			block:          &blockWithHashTrimmed,
+			allFpPks:       []string{"pk1", "pk2"},
+			fpPowers:       map[string]uint64{"pk1": 100, "pk2": 300},
+			votedProviders: []string{"pk1"},
+			expectResult:   false,
+			expectedErr:    nil,
 		},
 		{
-			name:                    "exact 2/3 votes, expects true",
-			block:                   &blockWithHashTrimmed,
-			allFpPks:                []string{"pk1", "pk2", "pk3"},
-			fpPowers:                map[string]uint64{"pk1": 100, "pk2": 100, "pk3": 100},
-			votedProviders:          []string{"pk1", "pk2"},
-			stakingActivationHeight: BTCHeight - 1,
-			expectResult:            true,
-			expectedErr:             nil,
+			name:           "exact 2/3 votes, expects true",
+			block:          &blockWithHashTrimmed,
+			allFpPks:       []string{"pk1", "pk2", "pk3"},
+			fpPowers:       map[string]uint64{"pk1": 100, "pk2": 100, "pk3": 100},
+			votedProviders: []string{"pk1", "pk2"},
+			expectResult:   true,
+			expectedErr:    nil,
 		},
 		{
-			name:                    "75% votes, expects true",
-			block:                   &blockWithHashTrimmed,
-			allFpPks:                []string{"pk1", "pk2"},
-			fpPowers:                map[string]uint64{"pk1": 100, "pk2": 300},
-			votedProviders:          []string{"pk2"},
-			stakingActivationHeight: BTCHeight - 1,
-			expectResult:            true,
-			expectedErr:             nil,
+			name:           "75% votes, expects true",
+			block:          &blockWithHashTrimmed,
+			allFpPks:       []string{"pk1", "pk2"},
+			fpPowers:       map[string]uint64{"pk1": 100, "pk2": 300},
+			votedProviders: []string{"pk2"},
+			expectResult:   true,
+			expectedErr:    nil,
 		},
 		{
-			name:                    "100% votes, expects true",
-			block:                   &blockWithHashTrimmed,
-			allFpPks:                []string{"pk1", "pk2", "pk3"},
-			fpPowers:                map[string]uint64{"pk1": 100, "pk2": 100, "pk3": 100},
-			votedProviders:          []string{"pk1", "pk2", "pk3"},
-			stakingActivationHeight: BTCHeight - 1,
-			expectResult:            true,
-			expectedErr:             nil,
+			name:           "100% votes, expects true",
+			block:          &blockWithHashTrimmed,
+			allFpPks:       []string{"pk1", "pk2", "pk3"},
+			fpPowers:       map[string]uint64{"pk1": 100, "pk2": 100, "pk3": 100},
+			votedProviders: []string{"pk1", "pk2", "pk3"},
+			expectResult:   true,
+			expectedErr:    nil,
 		},
 		{
-			name:                    "untrimmed block hash in input params, 75% votes, expects true",
-			block:                   &blockWithHashUntrimmed,
-			allFpPks:                []string{"pk1", "pk2", "pk3", "pk4"},
-			fpPowers:                map[string]uint64{"pk1": 100, "pk2": 100, "pk3": 100, "pk4": 100},
-			votedProviders:          []string{"pk1", "pk2", "pk3"},
-			stakingActivationHeight: BTCHeight - 1,
-			expectResult:            true,
-			expectedErr:             nil,
+			name:           "untrimmed block hash in input params, 75% votes, expects true",
+			block:          &blockWithHashUntrimmed,
+			allFpPks:       []string{"pk1", "pk2", "pk3", "pk4"},
+			fpPowers:       map[string]uint64{"pk1": 100, "pk2": 100, "pk3": 100, "pk4": 100},
+			votedProviders: []string{"pk1", "pk2", "pk3"},
+			expectResult:   true,
+			expectedErr:    nil,
 		},
 		{
-			name:                    "zero voting power, 100% votes, expects false",
-			block:                   &blockWithHashUntrimmed,
-			allFpPks:                []string{"pk1", "pk2", "pk3"},
-			fpPowers:                map[string]uint64{"pk1": 0, "pk2": 0, "pk3": 0},
-			votedProviders:          []string{"pk1", "pk2", "pk3"},
-			stakingActivationHeight: BTCHeight - 1,
-			expectResult:            false,
-			expectedErr:             types.ErrNoFpHasVotingPower,
-		},
-		{
-			name:                    "Btc staking not activated, 100% votes, expects false",
-			block:                   &blockWithHashUntrimmed,
-			allFpPks:                []string{"pk1", "pk2", "pk3"},
-			fpPowers:                map[string]uint64{"pk1": 100, "pk2": 100, "pk3": 100},
-			votedProviders:          []string{"pk1", "pk2", "pk3"},
-			stakingActivationHeight: BTCHeight + 1,
-			expectResult:            false,
-			expectedErr:             types.ErrBtcStakingNotActivated,
+			name:           "zero voting power, 100% votes, expects false",
+			block:          &blockWithHashUntrimmed,
+			allFpPks:       []string{"pk1", "pk2", "pk3"},
+			fpPowers:       map[string]uint64{"pk1": 0, "pk2": 0, "pk3": 0},
+			votedProviders: []string{"pk1", "pk2", "pk3"},
+			expectResult:   false,
+			expectedErr:    types.ErrNoFpHasVotingPower,
 		},
 	}
 
@@ -144,23 +126,17 @@ func TestQueryIsBlockBabylonFinalized(t *testing.T) {
 				QueryAllFpBtcPubKeys(consumerChainID).
 				Return(tc.allFpPks, nil).
 				Times(1)
+
 			mockBBNClient.EXPECT().
-				QueryEarliestActiveDelBtcHeight(tc.allFpPks).
-				Return(tc.stakingActivationHeight, nil).
+				QueryMultiFpPower(tc.allFpPks, BTCHeight).
+				Return(tc.fpPowers, nil).
 				Times(1)
 
-			if !errors.Is(tc.expectedErr, types.ErrBtcStakingNotActivated) {
-				mockBBNClient.EXPECT().
-					QueryMultiFpPower(tc.allFpPks, BTCHeight).
-					Return(tc.fpPowers, nil).
+			if !errors.Is(tc.expectedErr, types.ErrNoFpHasVotingPower) {
+				mockCwClient.EXPECT().
+					QueryListOfVotedFinalityProviders(&blockWithHashTrimmed).
+					Return(tc.votedProviders, tc.expectedErr).
 					Times(1)
-
-				if !errors.Is(tc.expectedErr, types.ErrNoFpHasVotingPower) {
-					mockCwClient.EXPECT().
-						QueryListOfVotedFinalityProviders(&blockWithHashTrimmed).
-						Return(tc.votedProviders, tc.expectedErr).
-						Times(1)
-				}
 			}
 
 			mockFinalityGadget := &FinalityGadget{
