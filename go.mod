@@ -2,8 +2,6 @@ module github.com/babylonlabs-io/finality-gadget
 
 go 1.23.8
 
-toolchain go1.23.11
-
 require (
 	github.com/CosmWasm/wasmd v0.55.1
 	github.com/avast/retry-go/v4 v4.5.1
