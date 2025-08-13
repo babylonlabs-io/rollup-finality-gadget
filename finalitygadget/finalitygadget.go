@@ -19,6 +19,7 @@ import (
 	"github.com/babylonlabs-io/finality-gadget/cwclient"
 	"github.com/babylonlabs-io/finality-gadget/db"
 	"github.com/babylonlabs-io/finality-gadget/ethl2client"
+	"github.com/babylonlabs-io/finality-gadget/metrics"
 	"github.com/babylonlabs-io/finality-gadget/testutil/mocks"
 	"github.com/babylonlabs-io/finality-gadget/types"
 	"github.com/ethereum/go-ethereum/common"
@@ -167,15 +168,6 @@ func (fg *FinalityGadget) QueryIsBlockBabylonFinalizedFromBabylon(block *types.B
 		return false, err
 	}
 
-	// check whether the btc staking is actived
-	earliestDelHeight, err := fg.bbnClient.QueryEarliestActiveDelBtcHeight(allFpPks)
-	if err != nil {
-		return false, err
-	}
-	if btcblockHeight < earliestDelHeight {
-		return false, types.ErrBtcStakingNotActivated
-	}
-
 	// get all FPs voting power at this BTC height
 	allFpPower, err := fg.bbnClient.QueryMultiFpPower(allFpPks, btcblockHeight)
 	if err != nil {
@@ -207,6 +199,32 @@ func (fg *FinalityGadget) QueryIsBlockBabylonFinalizedFromBabylon(block *types.B
 		if power, exists := allFpPower[key]; exists {
 			votedPower += power
 		}
+	}
+
+	// Track latest voting power per FP (bounded metrics - only latest values)
+	// Clear old metrics first to prevent memory leaks when FPs are removed
+	metrics.FpLatestVotingPower.Reset()
+	for fpPubkey, power := range allFpPower {
+		metrics.FpLatestVotingPower.WithLabelValues(fpPubkey).Set(float64(power))
+	}
+
+	// Track FP voting behavior in metrics
+	for _, votedFpPk := range votedFpPks {
+		metrics.FpLatestBlockVoted.WithLabelValues(votedFpPk).Set(float64(block.BlockHeight))
+	}
+
+	// Track FP voting behavior in metrics
+	for _, votedFpPk := range votedFpPks {
+		metrics.FpLatestBlockVoted.WithLabelValues(votedFpPk).Set(float64(block.BlockHeight))
+	}
+
+	// Track which FPs voted for this block
+	if len(votedFpPks) > 0 {
+		fpList := strings.Join(votedFpPks, ",")
+		metrics.BlockVoters.WithLabelValues(
+			fmt.Sprintf("%d", block.BlockHeight),
+			fpList,
+		).Set(float64(len(votedFpPks)))
 	}
 
 	// quorom < 2/3
@@ -543,6 +561,9 @@ func (fg *FinalityGadget) insertBlocks(blocks []*types.Block) error {
 		return fmt.Errorf("failed to batch insert blocks: %w", err)
 	}
 
+	// Increment metrics for finalized blocks
+	metrics.FinalizedBlocksTotal.Add(float64(len(normalizedBlocks)))
+
 	return nil
 }
 
@@ -752,6 +773,10 @@ func (fg *FinalityGadget) processHeight(height uint64) (*types.Block, error) {
 	}
 
 	fg.logger.Debug("Block finalized", zap.Uint64("block_height", height))
+
+	// Update latest finalized block height metric
+	metrics.LatestFinalizedBlockHeight.Set(float64(height))
+
 	return block, nil
 }
 

@@ -41,49 +41,50 @@ func (bbnClient *BabylonClient) QueryAllFpBtcPubKeys(consumerId string) ([]strin
 	return pkArr, nil
 }
 
-func (bbnClient *BabylonClient) QueryFpPower(fpPubkeyHex string, btcHeight uint32) (uint64, error) {
-	totalPower := uint64(0)
-	pagination := &sdkquerytypes.PageRequest{}
-	// queries the BTCStaking module for all delegations of a finality provider
-	resp, err := bbnClient.QueryClient.FinalityProviderDelegations(fpPubkeyHex, pagination)
-	if err != nil {
-		return 0, err
-	}
-	for {
-		// btcDels contains all the queried BTC delegations
-		for _, btcDels := range resp.BtcDelegatorDelegations {
-			for _, btcDel := range btcDels.Dels {
-				// check whether the delegation is active
-				isActive, err := bbnClient.isDelegationActive(btcDel, btcHeight)
-				if err != nil {
-					return 0, err
-				}
-				if isActive {
-					totalPower += btcDel.TotalSat
-				}
-			}
-		}
-		if resp.Pagination == nil || resp.Pagination.NextKey == nil {
-			break
-		}
-		pagination.Key = resp.Pagination.NextKey
-	}
-
-	return totalPower, nil
-}
-
 func (bbnClient *BabylonClient) QueryMultiFpPower(
 	fpPubkeyHexList []string,
 	btcHeight uint32,
 ) (map[string]uint64, error) {
-	fpPowerMap := make(map[string]uint64)
+	// Pre-fetch parameters once for all FPs (they're the same for all delegations at this height)
+	btccheckpointParams, err := bbnClient.QueryClient.BTCCheckpointParams()
+	if err != nil {
+		return nil, err
+	}
+	btcstakingParams, err := bbnClient.QueryClient.BTCStakingParams()
+	if err != nil {
+		return nil, err
+	}
 
+	// Process FPs in parallel for better performance
+	type fpResult struct {
+		fpPubkeyHex string
+		power       uint64
+		err         error
+	}
+
+	resultCh := make(chan fpResult, len(fpPubkeyHexList))
+
+	// Extract values once
+	kValue := btccheckpointParams.GetParams().BtcConfirmationDepth
+	wValue := btccheckpointParams.GetParams().CheckpointFinalizationTimeout
+	covQuorum := btcstakingParams.GetParams().CovenantQuorum
+
+	// Launch goroutines for parallel processing
 	for _, fpPubkeyHex := range fpPubkeyHexList {
-		fpPower, err := bbnClient.QueryFpPower(fpPubkeyHex, btcHeight)
-		if err != nil {
-			return nil, err
+		go func(fpPk string) {
+			power, err := bbnClient.queryFpPower(fpPk, btcHeight, kValue, wValue, covQuorum)
+			resultCh <- fpResult{fpPubkeyHex: fpPk, power: power, err: err}
+		}(fpPubkeyHex)
+	}
+
+	// Collect results
+	fpPowerMap := make(map[string]uint64)
+	for i := 0; i < len(fpPubkeyHexList); i++ {
+		result := <-resultCh
+		if result.err != nil {
+			return nil, result.err
 		}
-		fpPowerMap[fpPubkeyHex] = fpPower
+		fpPowerMap[result.fpPubkeyHex] = result.power
 	}
 
 	return fpPowerMap, nil
@@ -95,6 +96,7 @@ func (bbnClient *BabylonClient) QueryEarliestActiveDelBtcHeight(fpPkHexList []st
 
 	for _, fpPkHex := range fpPkHexList {
 		fpEarliestDelBtcHeight, err := bbnClient.QueryFpEarliestActiveDelBtcHeight(fpPkHex)
+
 		if err != nil {
 			return math.MaxUint32, err
 		}
@@ -140,6 +142,9 @@ func (bbnClient *BabylonClient) QueryFpEarliestActiveDelBtcHeight(fpPubkeyHex st
 	latestBtcHeight := btcHeader.GetHeader().Height
 
 	earliestBtcHeight := uint32(math.MaxUint32)
+	pageCount := 0
+	maxPages := 500 // Safety limit to prevent infinite loops
+
 	for {
 		// btcDels contains all the queried BTC delegations
 		for _, btcDels := range resp.BtcDelegatorDelegations {
@@ -150,10 +155,23 @@ func (bbnClient *BabylonClient) QueryFpEarliestActiveDelBtcHeight(fpPubkeyHex st
 				}
 			}
 		}
+
 		if resp.Pagination == nil || resp.Pagination.NextKey == nil {
 			break
 		}
+
+		pageCount++
+		if pageCount >= maxPages {
+			break
+		}
+
+		// Set up pagination for next query
 		pagination.Key = resp.Pagination.NextKey
+
+		resp, err = bbnClient.QueryClient.FinalityProviderDelegations(fpPubkeyHex, pagination)
+		if err != nil {
+			return math.MaxUint32, err
+		}
 	}
 	return earliestBtcHeight, nil
 }
@@ -162,27 +180,61 @@ func (bbnClient *BabylonClient) QueryFpEarliestActiveDelBtcHeight(fpPubkeyHex st
 // INTERNAL
 //////////////////////////////
 
-// we implemented exact logic as in GetStatus
-// https://github.com/babylonlabs-io/babylon-private/blob/3d8f190c9b0c0795f6546806e3b8582de716cd60/x/btcstaking/types/btc_delegation.go#L90-L111
+// queryFpPower is an optimized version that reuses cached parameters
+func (bbnClient *BabylonClient) queryFpPower(
+	fpPubkeyHex string,
+	btcHeight uint32,
+	kValue uint32,
+	wValue uint32,
+	covQuorum uint32,
+) (uint64, error) {
+	totalPower := uint64(0)
+	pagination := &sdkquerytypes.PageRequest{}
+
+	// Query delegations for this FP
+	resp, err := bbnClient.QueryClient.FinalityProviderDelegations(fpPubkeyHex, pagination)
+	if err != nil {
+		return 0, err
+	}
+
+	for {
+		// Process all delegations in this page
+		for _, btcDels := range resp.BtcDelegatorDelegations {
+			for _, btcDel := range btcDels.Dels {
+				// Check if delegation is active using cached parameters (inline for performance)
+				if bbnClient.isDelegationActive(btcDel, btcHeight, kValue, wValue, covQuorum) {
+					totalPower += btcDel.TotalSat
+				}
+			}
+		}
+
+		if resp.Pagination == nil || resp.Pagination.NextKey == nil {
+			break
+		}
+		pagination.Key = resp.Pagination.NextKey
+
+		// Query next page
+		resp, err = bbnClient.QueryClient.FinalityProviderDelegations(fpPubkeyHex, pagination)
+		if err != nil {
+			return 0, err
+		}
+	}
+
+	return totalPower, nil
+}
+
+// isDelegationActive checks if delegation is active using pre-calculated parameters
 func (bbnClient *BabylonClient) isDelegationActive(
 	btcDel *bbntypes.BTCDelegationResponse,
 	btcHeight uint32,
-) (bool, error) {
-	btccheckpointParams, err := bbnClient.QueryClient.BTCCheckpointParams()
-	if err != nil {
-		return false, err
-	}
-	btcstakingParams, err := bbnClient.QueryClient.BTCStakingParams()
-	if err != nil {
-		return false, err
-	}
-	kValue := btccheckpointParams.GetParams().BtcConfirmationDepth
-	wValue := btccheckpointParams.GetParams().CheckpointFinalizationTimeout
-	covQuorum := btcstakingParams.GetParams().CovenantQuorum
+	kValue uint32,
+	wValue uint32,
+	covQuorum uint32,
+) bool {
 	ud := btcDel.UndelegationResponse
 
 	if ud.DelegatorUnbondingInfoResponse != nil {
-		return false, nil
+		return false
 	}
 
 	// k is not involved in the `GetStatus` logic as Babylon will accept a BTC delegation request
@@ -197,20 +249,20 @@ func (bbnClient *BabylonClient) isDelegationActive(
 	//
 	// So in our case, we need to check both to ensure the delegation is active
 	if btcHeight < btcDel.StartHeight+kValue || btcHeight+wValue > btcDel.EndHeight {
-		return false, nil
+		return false
 	}
 
 	if len(btcDel.CovenantSigs) < int(covQuorum) {
-		return false, nil
+		return false
 	}
 	if len(ud.CovenantUnbondingSigList) < int(covQuorum) {
-		return false, nil
+		return false
 	}
 	if len(ud.CovenantSlashingSigs) < int(covQuorum) {
-		return false, nil
+		return false
 	}
 
-	return true, nil
+	return true
 }
 
 // The active delegation needs to satisfy:
