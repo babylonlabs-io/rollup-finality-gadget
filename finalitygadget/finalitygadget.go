@@ -101,15 +101,26 @@ func NewFinalityGadget(cfg *config.Config, db db.IDatabaseHandler, logger *zap.L
 
 	lastProcessedHeight := uint64(0)
 
-	// Check if configured start block height is valid against bsn_activation_height
-	if cfg.StartBlockHeight > 0 {
-		if cfg.StartBlockHeight < contractConfig.BsnActivationHeight {
-			return nil, fmt.Errorf("configured StartBlockHeight (%d) is less than bsn_activation_height (%d), earliest allowed block is %d",
-				cfg.StartBlockHeight, contractConfig.BsnActivationHeight, contractConfig.BsnActivationHeight)
-		}
-		lastProcessedHeight = cfg.StartBlockHeight - 1
+	// Try to resume from the last finalized block in database first
+	latestFinalizedBlockDb, err := db.QueryLatestFinalizedBlock()
+	if err == nil && latestFinalizedBlockDb != nil {
+		// Resume from last finalized block
+		lastProcessedHeight = latestFinalizedBlockDb.BlockHeight
+		logger.Info("Resuming from last finalized block in database",
+			zap.Uint64("last_finalized_height", lastProcessedHeight))
 	} else {
-		return nil, fmt.Errorf("StartBlockHeight must be specified and >= bsn_activation_height (%d)", contractConfig.BsnActivationHeight)
+		// No previous state found, use configured StartBlockHeight
+		if cfg.StartBlockHeight > 0 {
+			if cfg.StartBlockHeight < contractConfig.BsnActivationHeight {
+				return nil, fmt.Errorf("configured StartBlockHeight (%d) is less than bsn_activation_height (%d), earliest allowed block is %d",
+					cfg.StartBlockHeight, contractConfig.BsnActivationHeight, contractConfig.BsnActivationHeight)
+			}
+			lastProcessedHeight = cfg.StartBlockHeight - 1
+			logger.Info("Starting from configured StartBlockHeight",
+				zap.Uint64("start_height", cfg.StartBlockHeight))
+		} else {
+			return nil, fmt.Errorf("StartBlockHeight must be specified and >= bsn_activation_height (%d)", contractConfig.BsnActivationHeight)
+		}
 	}
 
 	// Create finality gadget
