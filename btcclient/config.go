@@ -15,8 +15,8 @@ const (
 	defaultBitcoindBlockCacheSize = 20 * 1024 * 1024 // 20 MB
 	defaultBlockPollingInterval   = 30 * time.Second
 	defaultTxPollingInterval      = 30 * time.Second
-	defaultMaxRetryTimes          = 5
-	defaultRetryInterval          = 500 * time.Millisecond
+	defaultMaxRetryTimes          = 30
+	defaultRetryInterval          = 2 * time.Second
 	// DefaultTxPollingJitter defines the default TxPollingIntervalJitter
 	// to be used for bitcoind backend.
 	DefaultTxPollingJitter = 0.5
