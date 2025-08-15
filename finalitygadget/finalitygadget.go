@@ -218,13 +218,18 @@ func (fg *FinalityGadget) QueryIsBlockBabylonFinalizedFromBabylon(block *types.B
 		metrics.FpLatestBlockVoted.WithLabelValues(votedFpPk).Set(float64(block.BlockHeight))
 	}
 
-	// Track which FPs voted for this block
-	if len(votedFpPks) > 0 {
-		fpList := strings.Join(votedFpPks, ",")
-		metrics.BlockVoters.WithLabelValues(
-			fmt.Sprintf("%d", block.BlockHeight),
-			fpList,
-		).Set(float64(len(votedFpPks)))
+	// Track missed blocks for FPs that didn't vote
+	votedFpSet := make(map[string]bool)
+	for _, fpPk := range votedFpPks {
+		votedFpSet[fpPk] = true
+	}
+
+	// For each FP with voting power, check if they voted
+	for fpPubkey := range allFpPower {
+		if !votedFpSet[fpPubkey] {
+			// This FP missed this block
+			metrics.FpMissedBlocks.WithLabelValues(fpPubkey).Inc()
+		}
 	}
 
 	// quorom < 2/3
