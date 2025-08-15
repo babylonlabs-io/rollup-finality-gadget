@@ -590,7 +590,7 @@ func determineStartingHeight(
 
 	// Case 1: No StartBlockHeight configured
 	if cfg.StartBlockHeight == 0 {
-		if dbHeight == 0 {
+		if dbHeight == 0 && contractConfig.BsnActivationHeight > 0 {
 			return 0, fmt.Errorf("StartBlockHeight must be specified when no previous state exists in database and must be >= bsn_activation_height (%d)", contractConfig.BsnActivationHeight)
 		}
 		logger.Info("Resuming from database height (no StartBlockHeight configured)", zap.Uint64("db_height", dbHeight))
