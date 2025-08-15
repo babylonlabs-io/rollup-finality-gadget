@@ -119,7 +119,7 @@ func NewFinalityGadget(cfg *config.Config, db db.IDatabaseHandler, logger *zap.L
 			logger.Info("Starting from configured StartBlockHeight",
 				zap.Uint64("start_height", cfg.StartBlockHeight))
 		} else {
-			return nil, fmt.Errorf("StartBlockHeight must be specified and >= bsn_activation_height (%d)", contractConfig.BsnActivationHeight)
+			return nil, fmt.Errorf("StartBlockHeight must be specified when no previous state exists in database and must be >= bsn_activation_height (%d)", contractConfig.BsnActivationHeight)
 		}
 	}
 
