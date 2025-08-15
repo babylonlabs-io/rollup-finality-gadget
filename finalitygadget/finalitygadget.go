@@ -147,6 +147,9 @@ func NewFinalityGadget(cfg *config.Config, db db.IDatabaseHandler, logger *zap.L
  *   - get all FPs that voted this L2 block with the same height and hash
  *   - calculate voted voting power
  *   - check if the voted voting power is more than 2/3 of the total voting power
+ *
+ * TODO: This query function should not track metrics. Callers should handle metrics tracking
+ * by calling trackFinalityProviderMetrics() when appropriate for their use case.
  */
 func (fg *FinalityGadget) QueryIsBlockBabylonFinalizedFromBabylon(block *types.Block) (bool, error) {
 	if block == nil {
