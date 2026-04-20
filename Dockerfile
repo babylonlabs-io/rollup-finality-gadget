@@ -6,6 +6,7 @@ ARG VERSION="HEAD"
 # Use muslc for static libs
 ARG BUILD_TAGS="muslc"
 
+# hadolint ignore=DL3018
 RUN apk add --no-cache --update openssh git make build-base linux-headers \
     pkgconfig zeromq-dev libsodium-dev \
     libzmq-static libsodium-static gcc
@@ -19,12 +20,13 @@ RUN go mod download
 COPY ./ /go/src/github.com/babylonlabs-io/finality-gadget/
 
 # Download the correct libwasmvm version for the static linking with the build tag 'muslc'
+SHELL ["/bin/ash", "-eo", "pipefail", "-c"]
 RUN WASMVM_VERSION=$(go list -m github.com/CosmWasm/wasmvm/v2 | cut -d ' ' -f 2) && \
-    wget https://github.com/CosmWasm/wasmvm/releases/download/$WASMVM_VERSION/libwasmvm_muslc.$(uname -m).a \
-    -O /lib/libwasmvm_muslc.$(uname -m).a && \
+    wget -q https://github.com/CosmWasm/wasmvm/releases/download/"$WASMVM_VERSION"/libwasmvm_muslc."$(uname -m)".a \
+    -O /lib/libwasmvm_muslc."$(uname -m)".a && \
     # verify checksum
-    wget https://github.com/CosmWasm/wasmvm/releases/download/$WASMVM_VERSION/checksums.txt -O /tmp/checksums.txt && \
-    sha256sum /lib/libwasmvm_muslc.$(uname -m).a | grep $(cat /tmp/checksums.txt | grep libwasmvm_muslc.$(uname -m) | cut -d ' ' -f 1)
+    wget -q https://github.com/CosmWasm/wasmvm/releases/download/"$WASMVM_VERSION"/checksums.txt -O /tmp/checksums.txt && \
+    sha256sum /lib/libwasmvm_muslc."$(uname -m)".a | grep "$(cat /tmp/checksums.txt | grep libwasmvm_muslc."$(uname -m)" | cut -d ' ' -f 1)"
 
 RUN CGO_LDFLAGS="$CGO_LDFLAGS -lstdc++ -lm -lsodium" \
     CGO_ENABLED=1 \
@@ -33,11 +35,11 @@ RUN CGO_LDFLAGS="$CGO_LDFLAGS -lstdc++ -lm -lsodium" \
     make build
 
 # FINAL IMAGE
-FROM alpine:3.16
+FROM alpine:3.21
 
 RUN addgroup --gid 1138 -S finality-gadget && adduser --uid 1138 -S finality-gadget -G finality-gadget
 
-RUN apk add bash curl jq libstdc++ libgcc
+RUN apk add --no-cache bash=5.2.37-r0 curl=8.14.1-r2 jq=1.7.1-r0 libgcc=14.2.0-r4 libstdc++=14.2.0-r4
 
 COPY --from=builder /go/src/github.com/babylonlabs-io/finality-gadget/build/opfgd /bin/opfgd
 
